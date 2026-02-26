@@ -7349,6 +7349,7 @@
         current = 0,
         answers = [],
         timeLeft = 0,
+        timeElapsed = 0,
         isReviewMode = false,
         timerInt;
       let selectedSections = new Set();
@@ -7422,13 +7423,19 @@
         });
       }
       function startTimer() {
+        timeSpent = 0; // Reset for new exam
         timerInt = setInterval(() => {
           if (isReviewMode) return;
-          timeLeft--;
-          const m = Math.floor(timeLeft / 60),
-            s = timeLeft % 60;
+
+          timeLeft--; // Countdown
+          timeSpent++; // Track time used
+
+          // Display the COUNTDOWN (from user input)
+          const m = Math.floor(timeLeft / 60);
+          const s = timeLeft % 60;
           document.getElementById("timer").innerText =
             `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+
           if (timeLeft <= 0) submitExam(true);
         }, 1000);
       }
@@ -7466,28 +7473,19 @@
         updatePalette();
       }
       function updatePalette() {
-        document.querySelectorAll(".palette button").forEach((b, i) => {
-          b.classList.remove(
-            "current",
-            "answered",
-            "palette-correct",
-            "palette-wrong",
-          );
-
-          if (i === current) b.classList.add("current");
+        document.querySelectorAll(".palette button").forEach((btn, i) => {
+          // Highlight current question
+          btn.style.outline = i === current ? "3px solid white" : "none";
 
           if (isReviewMode) {
-            // After submission: Show Green or Red
-            if (answers[i] === questions[i].a.toUpperCase()) {
-              b.classList.add("palette-correct");
-            } else {
-              b.classList.add("palette-wrong");
-            }
+            // AFTER SUBMIT: Green if right, Red if wrong
+            const isCorrect = answers[i] === questions[i].a.toUpperCase();
+            btn.style.backgroundColor = isCorrect ? "#22c55e" : "#e11d48";
+            btn.style.color = "white";
           } else {
-            // During exam: Show Blue if answered
-            if (answers[i] !== null) {
-              b.classList.add("answered");
-            }
+            // DURING EXAM: Blue if answered, Gray if not
+            btn.style.backgroundColor = answers[i] ? "#2563eb" : "#475569";
+            btn.style.color = "white";
           }
         });
       }
@@ -7507,30 +7505,37 @@
           loadQuestion();
         }
       }
-
       function submitExam(force = false) {
         if (!force && !confirm("Are you sure you want to submit?")) return;
 
         isReviewMode = true;
-        clearInterval(timerInt); // Stops the timer
+        clearInterval(timerInt);
 
         let score = 0;
         questions.forEach((q, i) => {
           if (answers[i] === q.a.toUpperCase()) score++;
         });
 
-        // Show the results at the top of the page
+        // Calculate final time spent for the banner
+        const finalM = Math.floor(timeSpent / 60);
+        const finalS = timeSpent % 60;
+        const timeSpentString = `${String(finalM).padStart(2, "0")}:${String(finalS).padStart(2, "0")}`;
+
+        // Show Results at the top
         const banner = document.getElementById("resultBanner");
         banner.style.display = "block";
+
         document.getElementById("scoreDisplay").innerText =
           `Final Score: ${score} / ${questions.length}`;
-        document.getElementById("percentDisplay").innerText =
-          `Accuracy: ${Math.round((score / questions.length) * 100)}% | Time Spent: ${document.getElementById("timer").innerText}`;
 
-        // Reset to question 1 to show the corrections
+        // Show TIME SPENT here, even though the timer was counting down
+        document.getElementById("percentDisplay").innerText =
+          `Accuracy: ${Math.round((score / questions.length) * 100)}% | Time Spent: ${timeSpentString}`;
+
         current = 0;
         loadQuestion();
-        window.scrollTo(0, 0); // Scroll to top to see score
+        updatePalette(); // Triggers the Blue/Green/Red colors
+        window.scrollTo(0, 0);
       }
       initSetup();
     </script>
