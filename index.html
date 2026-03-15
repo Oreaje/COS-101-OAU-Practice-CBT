@@ -7629,195 +7629,183 @@
         current = 0,
         answers = [],
         timeLeft = 0,
-        timeElapsed = 0,
+        timeSpent = 0, // Ensure this is initialized
         isReviewMode = false,
         timerInt;
-      let selectedSections = new Set();
+    let selectedSections = new Set();
 
-      function initSetup() {
+    function initSetup() {
         const grid = document.getElementById("sectionGrid");
         SECTIONS.forEach((sec) => {
-          const div = document.createElement("div");
-          div.className = "section-item";
-          div.innerHTML = `<span class="sec-num">${sec.id}</span><span>${sec.name}</span>`;
-          div.onclick = () => {
-            if (selectedSections.has(sec.id)) {
-              selectedSections.delete(sec.id);
-              div.classList.remove("active");
-            } else {
-              selectedSections.add(sec.id);
-              div.classList.add("active");
-            }
-          };
-          grid.appendChild(div);
+            const div = document.createElement("div");
+            div.className = "section-item";
+            div.innerHTML = `<span class="sec-num">${sec.id}</span><span>${sec.name}</span>`;
+            div.onclick = () => {
+                if (selectedSections.has(sec.id)) {
+                    selectedSections.delete(sec.id);
+                    div.classList.remove("active");
+                } else {
+                    selectedSections.add(sec.id);
+                    div.classList.add("active");
+                }
+            };
+            grid.appendChild(div);
         });
-      }
+    }
 
-      function selectAllSections() {
+    function selectAllSections() {
         SECTIONS.forEach((s) => selectedSections.add(s.id));
-        document
-          .querySelectorAll(".section-item")
-          .forEach((el) => el.classList.add("active"));
-      }
-      function clearSections() {
-        selectedSections.clear();
-        document
-          .querySelectorAll(".section-item")
-          .forEach((el) => el.classList.remove("active"));
-      }
+        document.querySelectorAll(".section-item").forEach((el) => el.classList.add("active"));
+    }
 
-      function startExam() {
+    function clearSections() {
+        selectedSections.clear();
+        document.querySelectorAll(".section-item").forEach((el) => el.classList.remove("active"));
+    }
+
+    function startExam() {
         let pool = ALL_QUESTIONS.filter((q) => selectedSections.has(q.s));
         if (pool.length === 0) {
-          alert("No questions found for selected sections!");
-          return;
+            alert("No questions found for selected sections!");
+            return;
         }
 
-        let qty = Math.min(
-          parseInt(document.getElementById("userQty").value),
-          pool.length,
-        );
+        let qty = Math.min(parseInt(document.getElementById("userQty").value) || 10, pool.length);
         questions = pool.sort(() => 0.5 - Math.random()).slice(0, qty);
         timeLeft = parseInt(document.getElementById("userTime").value) * 60;
         answers = new Array(qty).fill(null);
         current = 0;
+        timeSpent = 0;
         isReviewMode = false;
 
         document.getElementById("setupScreen").style.display = "none";
         document.getElementById("examArea").style.display = "block";
+        document.getElementById("resultBanner").style.display = "none"; // Hide previous results
         createPalette(qty);
         loadQuestion();
         startTimer();
-      }
-      function colorResults(userAnswers, correctAnswers) {
-        questions.forEach((q, index) => {
-          const btn = document.getElementById(`nav-btn-${index}`);
+    }
 
-          if (userAnswers[index] === correctAnswers[index]) {
-            btn.style.backgroundColor = "green"; // Correct
-            btn.style.color = "white";
-          } else {
-            btn.style.backgroundColor = "red"; // Incorrect
-            btn.style.color = "white";
-          }
-        });
-      }
-      function startTimer() {
-        timeSpent = 0; // Reset for new exam
+    function startTimer() {
+        if (timerInt) clearInterval(timerInt);
         timerInt = setInterval(() => {
-          if (isReviewMode) return;
-
-          timeLeft--; // Countdown
-          timeSpent++; // Track time used
-
-          // Display the COUNTDOWN (from user input)
-          const m = Math.floor(timeLeft / 60);
-          const s = timeLeft % 60;
-          document.getElementById("timer").innerText =
-            `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
-
-          if (timeLeft <= 0) submitExam(true);
+            if (isReviewMode) return;
+            timeLeft--;
+            timeSpent++;
+            const m = Math.floor(timeLeft / 60);
+            const s = timeLeft % 60;
+            document.getElementById("timer").innerText = 
+                `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+            if (timeLeft <= 0) submitExam(true);
         }, 1000);
-      }
+    }
 
-      function createPalette(qty) {
+    function createPalette(qty) {
         const p = document.getElementById("palette");
         p.innerHTML = "";
         for (let i = 0; i < qty; i++) {
-          const btn = document.createElement("button");
-          btn.innerText = i + 1;
-          btn.onclick = () => {
-            current = i;
-            loadQuestion();
-          };
-          p.appendChild(btn);
+            const btn = document.createElement("button");
+            btn.id = `nav-btn-${i}`;
+            btn.innerText = i + 1;
+            btn.onclick = () => { current = i; loadQuestion(); };
+            p.appendChild(btn);
         }
-      }
+    }
 
-      function loadQuestion() {
+    function loadQuestion() {
         const q = questions[current],
-          letters = ["A", "B", "C", "D"];
+              letters = ["A", "B", "C", "D", "E"]; // Added E
+        
         let html = `<div><small>Section ${q.s}</small><h3>Q${current + 1}. ${q.q}</h3>`;
+        
         q.o.forEach((opt, i) => {
-          let cls = "option",
-            L = letters[i];
-          const isCorrect = q.a.toUpperCase() === L;
-          const isSelected = answers[current] === L;
-          if (isReviewMode) {
-            if (isCorrect) cls += " correct";
-            else if (isSelected) cls += " wrong";
-          } else if (isSelected) cls += " selected";
-          html += `<div class="${cls}" onclick="${isReviewMode ? "" : `selectAnswer('${L}')`}"><strong>${L}.</strong> ${opt}</div>`;
+            let cls = "option", L = letters[i];
+            
+            // Smart Check for correctness
+            const isCorrect = (q.a === L) || (opt.trim().toLowerCase() === q.a.trim().toLowerCase());
+            const isSelected = answers[current] === L;
+
+            if (isReviewMode) {
+                if (isCorrect) cls += " correct";
+                else if (isSelected) cls += " wrong";
+            } else if (isSelected) cls += " selected";
+            
+            html += `<div class="${cls}" onclick="${isReviewMode ? "" : `selectAnswer('${L}')`}"><strong>${L}.</strong> ${opt}</div>`;
         });
+        
         document.getElementById("questionBox").innerHTML = html;
         updatePalette();
-      }
-      function updatePalette() {
-        document.querySelectorAll(".palette button").forEach((btn, i) => {
-          // Highlight current question
-          btn.style.outline = i === current ? "3px solid white" : "none";
+    }
 
-          if (isReviewMode) {
-            // AFTER SUBMIT: Green if right, Red if wrong
-            const isCorrect = answers[i] === questions[i].a.toUpperCase();
-            btn.style.backgroundColor = isCorrect ? "#22c55e" : "#e11d48";
-            btn.style.color = "white";
-          } else {
-            // DURING EXAM: Blue if answered, Gray if not
-            btn.style.backgroundColor = answers[i] ? "#2563eb" : "#475569";
-            btn.style.color = "white";
-          }
+    function updatePalette() {
+        document.querySelectorAll("#palette button").forEach((btn, i) => {
+            btn.style.outline = i === current ? "3px solid white" : "none";
+            const letters = ["A", "B", "C", "D", "E"]; // Added E
+
+            if (isReviewMode) {
+                const q = questions[i];
+                const userL = answers[i];
+                const userIdx = letters.indexOf(userL);
+                const userText = userIdx !== -1 ? q.o[userIdx] : null;
+                
+                // Check if correct (by letter OR by text)
+                const isCorrect = (userL === q.a) || (userText && userText.trim().toLowerCase() === q.a.trim().toLowerCase());
+
+                if (isCorrect) {
+                    btn.style.backgroundColor = "#22c55e"; // Green
+                } else if (userL) {
+                    btn.style.backgroundColor = "#e11d48"; // Red
+                } else {
+                    btn.style.backgroundColor = "#475569"; // Gray (Skipped)
+                }
+                btn.style.color = "white";
+            } else {
+                btn.style.backgroundColor = answers[i] ? "#2563eb" : "#475569";
+                btn.style.color = "white";
+            }
         });
-      }
-      function selectAnswer(L) {
+    }
+
+    function selectAnswer(L) {
         answers[current] = L;
         loadQuestion();
-      }
-      function nextQ() {
-        if (current < questions.length - 1) {
-          current++;
-          loadQuestion();
-        }
-      }
-      function prevQ() {
-        if (current > 0) {
-          current--;
-          loadQuestion();
-        }
-      }
-      function submitExam(force = false) {
-        if (!force && !confirm("Are you sure you want to submit?")) return;
+    }
 
+    function nextQ() { if (current < questions.length - 1) { current++; loadQuestion(); } }
+    function prevQ() { if (current > 0) { current--; loadQuestion(); } }
+
+    function submitExam(force = false) {
+        if (!force && !confirm("Are you sure you want to submit?")) return;
         isReviewMode = true;
         clearInterval(timerInt);
 
         let score = 0;
+        const letters = ["A", "B", "C", "D", "E"]; // Added E
+
         questions.forEach((q, i) => {
-          if (answers[i] === q.a.toUpperCase()) score++;
+            const userL = answers[i];
+            const userIdx = letters.indexOf(userL);
+            const userText = userIdx !== -1 ? q.o[userIdx] : null;
+
+            // Mark correct if Letter matches OR Text matches
+            if ((userL === q.a) || (userText && userText.trim().toLowerCase() === q.a.trim().toLowerCase())) {
+                score++;
+            }
         });
 
-        // Calculate final time spent for the banner
         const finalM = Math.floor(timeSpent / 60);
         const finalS = timeSpent % 60;
-        const timeSpentString = `${String(finalM).padStart(2, "0")}:${String(finalS).padStart(2, "0")}`;
-
-        // Show Results at the top
-        const banner = document.getElementById("resultBanner");
-        banner.style.display = "block";
-
-        document.getElementById("scoreDisplay").innerText =
-          `Final Score: ${score} / ${questions.length}`;
-
-        // Show TIME SPENT here, even though the timer was counting down
-        document.getElementById("percentDisplay").innerText =
-          `Accuracy: ${Math.round((score / questions.length) * 100)}% | Time Spent: ${timeSpentString}`;
+        document.getElementById("resultBanner").style.display = "block";
+        document.getElementById("scoreDisplay").innerText = `Final Score: ${score} / ${questions.length}`;
+        document.getElementById("percentDisplay").innerText = 
+            `Accuracy: ${Math.round((score / questions.length) * 100)}% | Time: ${String(finalM).padStart(2, "0")}:${String(finalS).padStart(2, "0")}`;
 
         current = 0;
         loadQuestion();
-        updatePalette(); // Triggers the Blue/Green/Red colors
         window.scrollTo(0, 0);
-      }
-      initSetup();
-    </script>
+    }
+
+    initSetup();
+</script>
   </body>
 </html>
